@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 from wideresnet import WideResNet
 from preactresnet import PreActResNet18
@@ -212,7 +213,11 @@ def main():
     else:
         raise ValueError("Unknown model")
 
-    model = nn.DataParallel(model).cuda()
+    if torch.cuda.device_count() > 1:#判断是不是有多个GPU
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
+    model = model.cuda()
+
     model.train()
 
     if args.l2:
