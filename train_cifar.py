@@ -217,10 +217,6 @@ def main():
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model)
     model = model.cuda()
-<<<<<<< HEAD
-=======
-
->>>>>>> f86e2ed3ca2d725886d75f2babeaf1b68981aaff
     model.train()
 
     if args.l2:
