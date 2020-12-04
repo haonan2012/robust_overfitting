@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 from wideresnet import WideResNet
 from preactresnet import PreActResNet18
@@ -144,18 +144,18 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='cifar_model', type=str)
+    parser.add_argument('--fname', default='cifar10_pgd10', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
-    parser.add_argument('--resume', default=0, type=int)
+    parser.add_argument('--resume', default=20, type=int)
     parser.add_argument('--cutout', action='store_true')
     parser.add_argument('--cutout-len', type=int)
     parser.add_argument('--mixup', action='store_true')
     parser.add_argument('--mixup-alpha', type=float)
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--val', action='store_true')
-    parser.add_argument('--chkpt-iters', default=10, type=int)
+    parser.add_argument('--chkpt-iters', default=1, type=int)
     return parser.parse_args()
 
 
@@ -413,7 +413,7 @@ def main():
                 val_n += y.size(0)
 
         if not args.eval:
-            logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
+            logger.info('%d \t %.1f \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f',
                 epoch, train_time - start_time, test_time - train_time, lr,
                 train_loss/train_n, train_acc/train_n, train_robust_loss/train_n, train_robust_acc/train_n,
                 test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
@@ -438,8 +438,9 @@ def main():
 
             # save checkpoint
             if (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
+                # opt.zero_grad()
                 torch.save(model.state_dict(), os.path.join(args.fname, f'model_{epoch}.pth'))
-                torch.save(opt.state_dict(), os.path.join(args.fname, f'opt_{epoch}.pth'))
+                # torch.save(opt.state_dict(), os.path.join(args.fname, f'opt_{epoch}.pth'))
 
             # save best
             if test_robust_acc/test_n > best_test_robust_acc:
@@ -452,7 +453,7 @@ def main():
                     }, os.path.join(args.fname, f'model_best.pth'))
                 best_test_robust_acc = test_robust_acc/test_n
         else:
-            logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
+            logger.info('%d \t %.1f \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t %.4f',
                 epoch, train_time - start_time, test_time - train_time, -1,
                 -1, -1, -1, -1,
                 test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
