@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 from wideresnet import WideResNet
 from preactresnet import PreActResNet18
@@ -217,6 +217,10 @@ def main():
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model)
     model = model.cuda()
+<<<<<<< HEAD
+=======
+
+>>>>>>> f86e2ed3ca2d725886d75f2babeaf1b68981aaff
     model.train()
 
     if args.l2:
