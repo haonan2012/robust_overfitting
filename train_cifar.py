@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 from wideresnet import WideResNet
 from preactresnet import PreActResNet18
@@ -129,7 +130,7 @@ def get_args():
     parser.add_argument('--l2', default=0, type=float)
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--batch-size', default=128, type=int)
-    parser.add_argument('--data-dir', default='../cifar-data', type=str)
+    parser.add_argument('--data-dir', default='../data', type=str)
     parser.add_argument('--epochs', default=200, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine'])
     parser.add_argument('--lr-max', default=0.1, type=float)
@@ -197,10 +198,10 @@ def main():
     train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
         dataset['train']['labels']))
     train_set_x = Transform(train_set, transforms)
-    train_batches = Batches(train_set_x, args.batch_size, shuffle=True, set_random_choices=True, num_workers=2)
+    train_batches = Batches(train_set_x, args.batch_size, shuffle=True, set_random_choices=True, num_workers=0)
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
-    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=2)
+    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=0)
 
     epsilon = (args.epsilon / 255.)
     pgd_alpha = (args.pgd_alpha / 255.)
@@ -212,7 +213,10 @@ def main():
     else:
         raise ValueError("Unknown model")
 
-    model = nn.DataParallel(model).cuda()
+    if torch.cuda.device_count() > 1:#判断是不是有多个GPU
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
+    model = model.cuda()
     model.train()
 
     if args.l2:
