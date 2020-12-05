@@ -21,9 +21,14 @@ class Args_pgd():
         self.early_stop = early_stop
 
     def check_args_value(self):
-        print(self.attack, self.epsilon, self.alpha, self.lower_limit, self.upper_limit)
+        # print(self.attack, self.epsilon, self.alpha, self.lower_limit, self.upper_limit)
         if self.attack == 'pgd':
             print(self.attack_init, self.norm, self.attack_iters, self.restarts, self.early_stop)
+
+
+def set_param_grad(model, bool):
+    for p in model.parameters():
+        p.requires_grad_(bool)
 
 
 def attack_fgsm(model, X, y, criterion, args):
@@ -186,10 +191,11 @@ def attack_pgd(model, X, y, criterion, args):
             d = clamp(d, args.lower_limit - x, args.upper_limit - x)
             delta.data[index, :, :, :] = d
             delta.grad.zero_()
-        all_loss = criterion(model(X + delta), y, reduction='none')
-        max_idx = all_loss >= max_loss
-        max_delta[max_idx] = delta.detach()[max_idx]
-        max_loss[max_idx] = all_loss[max_idx]
+        with torch.no_grad():
+            all_loss = criterion(model(X + delta), y, reduction='none')
+            max_idx = all_loss >= max_loss
+            max_delta[max_idx] = delta[max_idx]
+            max_loss[max_idx] = all_loss[max_idx]
     return max_delta
 
 

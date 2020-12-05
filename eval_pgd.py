@@ -6,7 +6,7 @@ import time
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
-from attack import Args_pgd, set_param_grad, attack_pgd, attack_pgd_01, attack_pgd_02, attack_pgd_my, attack_pgd_my_1
+from attack import Args_pgd, attack_pgd, attack_pgd_01, attack_pgd_02, attack_pgd_my, attack_pgd_my_1
 import copy
 
 from torchvision import transforms, datasets
@@ -88,62 +88,33 @@ def test(test_loader, attack_func=None, attack_args=None):
           test_time, test_loss, test_acc, test_robust_loss, test_robust_acc))
 
 
-model_name = 'mnist_net'
 dataset = 'cifar10'
 
 model = PreActResNet18()
-
-model_load = torch.load('cifar10_pgd10/' + 'model_19.pth')
-model.load_state_dict(model_load)
-# print(model_load['test_robust_acc'])
 if torch.cuda.device_count() > 1:#判断是不是有多个GPU
     print("Let's use", torch.cuda.device_count(), "GPUs!")
     model = nn.DataParallel(model)
 model = model.cuda()
 
 criterion = F.cross_entropy
+test_loader = get_loader(dataset, train=False, batch_size=512, data_augm=False, num_workers=2)
 
-test_loader = get_loader(dataset, train=False, batch_size=128, data_augm=False, num_workers=2)
 
-args_test = Args_pgd('pgd')
-# args_test.check_args_value()
-
-args_test2 = copy.deepcopy(args_test)
+args_test = Args_pgd('pgd', attack_iters=20)
 mean, std = dataset_norm(dataset)
-# print(mean, std)
 mu = torch.tensor(mean).view(-1, 1, 1).cuda()
 std = torch.tensor(std).view(-1, 1, 1).cuda()
-args_test2.upper_limit = ((1 - mu) / std)
-args_test2.lower_limit = ((0 - mu) / std)
-args_test2.epsilon = (args_test2.epsilon) / std
-args_test2.alpha = args_test2.alpha / std
+args_test.upper_limit = ((1 - mu) / std)
+args_test.lower_limit = ((0 - mu) / std)
+args_test.epsilon = (args_test.epsilon) / std
+args_test.alpha = args_test.alpha / std
+# args_test2.attack_init = 'zero'
+# args_test.early_stop = True
+args_test.check_args_value()
 
-run_num = 5
-froze_param(model, False)
-for early_stop in [False]:
-    args_test2.early_stop = early_stop
-    for init in ['zero']:
-        args_test2.attack_init = init
-        args_test2.check_args_value()
+for epoch in range(20, 201, 20):
+    print(epoch, end='\t')
+    model_load = torch.load('cifar10_pgd10/' + f'model_{epoch-1}.pth')
+    model.load_state_dict(model_load)
+    test(test_loader, attack_pgd, args_test)
 
-        print('------------pgd--------------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd, args_test2)
-
-        print('------------pgd_01--------------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_01, args_test2)
-
-        print('------------pgd_02--------------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_02, args_test2)
-
-        print('------------pgd my-------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_my, args_test2)
-
-        print('------------pgd my 1-------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_my_1, args_test2)
-
-# 运行说明：运行前更改 CUDA_VISIBLE_DEVICES 和 num_workers

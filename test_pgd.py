@@ -1,12 +1,13 @@
 from preactresnet import PreActResNet18
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 import time
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1,0,2,3'
 
-from attack import Args_pgd, set_param_grad, attack_pgd, attack_pgd_01, attack_pgd_02, attack_pgd_my, attack_pgd_my_1
+from attack import Args_pgd, attack_pgd, set_param_grad
 import copy
 
 from torchvision import transforms, datasets
@@ -92,10 +93,10 @@ model_name = 'mnist_net'
 dataset = 'cifar10'
 
 model = PreActResNet18()
-
-model_load = torch.load('cifar10_pgd10/' + 'model_19.pth')
-model.load_state_dict(model_load)
+model_load = torch.load('cifar10_pgd10/' + 'model_best.pth')
+model.load_state_dict(model_load['state_dict'])
 # print(model_load['test_robust_acc'])
+
 if torch.cuda.device_count() > 1:#判断是不是有多个GPU
     print("Let's use", torch.cuda.device_count(), "GPUs!")
     model = nn.DataParallel(model)
@@ -103,7 +104,7 @@ model = model.cuda()
 
 criterion = F.cross_entropy
 
-test_loader = get_loader(dataset, train=False, batch_size=128, data_augm=False, num_workers=2)
+test_loader = get_loader(dataset, train=False, batch_size=512, data_augm=False, num_workers=2)
 
 args_test = Args_pgd('pgd')
 # args_test.check_args_value()
@@ -118,32 +119,24 @@ args_test2.lower_limit = ((0 - mu) / std)
 args_test2.epsilon = (args_test2.epsilon) / std
 args_test2.alpha = args_test2.alpha / std
 
-run_num = 5
-froze_param(model, False)
-for early_stop in [False]:
-    args_test2.early_stop = early_stop
-    for init in ['zero']:
-        args_test2.attack_init = init
-        args_test2.check_args_value()
+# X, y = iter(test_loader).next()
+# X, y = X.cuda(), y.cuda()
 
-        print('------------pgd--------------------------')
+set_param_grad(model, False)
+
+# delta = attack_pgd(model, X, y, criterion, args_test2)
+
+run_num = 1
+for init in ['rand']:
+    args_test2.attack_init = init
+    args_test2.check_args_value()
+
+    for restarts in range(1, 20):
+        args_test2.restarts = restarts
+        print(restarts, end='\t')
+
+        # print('------------pgd--------------------------')
         for i in range(run_num):
             test(test_loader, attack_pgd, args_test2)
-
-        print('------------pgd_01--------------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_01, args_test2)
-
-        print('------------pgd_02--------------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_02, args_test2)
-
-        print('------------pgd my-------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_my, args_test2)
-
-        print('------------pgd my 1-------------------')
-        for i in range(run_num):
-            test(test_loader, attack_pgd_my_1, args_test2)
 
 # 运行说明：运行前更改 CUDA_VISIBLE_DEVICES 和 num_workers
