@@ -1,17 +1,17 @@
 from preactresnet import PreActResNet18
 import torch
 import torch.nn.functional as F
-import torch.nn as nn
 import time
-
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '2'
-
-from attack import Args_pgd, attack_pgd, set_param_grad
 import copy
+import os
+
+from attack import Args_pgd, attack_pgd
 
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
+
+
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 
 def dataset_norm(dataset):
@@ -91,22 +91,12 @@ def test(test_loader, attack_func=None, attack_args=None):
 
 # model_name = 'mnist_net'
 dataset = 'cifar10'
+test_loader = get_loader(dataset, train=False, batch_size=128, data_augm=False, num_workers=2)
 
 model = PreActResNet18()
-model_load = torch.load('cifar10_pgd10/' + 'model_39.pth')
-model.load_state_dict(model_load)
-# model.load_state_dict(model_load['state_dict'])
-# print(model_load['test_robust_acc'])
-
-if torch.cuda.device_count() > 1:#判断是不是有多个GPU
-    print("Let's use", torch.cuda.device_count(), "GPUs!")
-    model = nn.DataParallel(model)
 model = model.cuda()
 
 criterion = F.cross_entropy
-
-test_loader = get_loader(dataset, train=True, batch_size=128, data_augm=True, num_workers=2)
-
 args_test = Args_pgd('pgd')
 # args_test.check_args_value()
 
@@ -119,8 +109,19 @@ args_test2.upper_limit = ((1 - mu) / std)
 args_test2.lower_limit = ((0 - mu) / std)
 args_test2.epsilon = (args_test2.epsilon) / std
 args_test2.alpha = args_test2.alpha / std
+args_test.attack_iters = 20
 
-test(test_loader, attack_pgd, args_test2)
+for epoch in range():
+    model_load = torch.load('cifar10_pgd10/' + f'model_{epoch}.pth')
+    model.load_state_dict(model_load)
+    # model.load_state_dict(model_load['state_dict'])
+    # print(model_load['test_robust_acc'])
+
+    # if torch.cuda.device_count() > 1:  # 判断是不是有多个GPU
+    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    #     model = nn.DataParallel(model)
+
+    test(test_loader, attack_pgd, args_test2)
 
 # X, y = iter(test_loader).next()
 # X, y = X.cuda(), y.cuda()
