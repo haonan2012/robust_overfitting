@@ -87,11 +87,12 @@ def test(test_loader, attack_func=None, attack_args=None):
     test_time = time.time() - start_time
     print('%.1f  \t %.4f  \t %.4f  \t %.4f  \t %.4f' % (
           test_time, test_loss, test_acc, test_robust_loss, test_robust_acc))
+    return test_robust_acc
 
 
 # model_name = 'mnist_net'
 dataset = 'cifar10'
-test_loader = get_loader(dataset, train=False, batch_size=128, data_augm=False, num_workers=2)
+test_loader = get_loader(dataset, train=False, batch_size=128, data_augm=False, num_workers=0)
 
 model = PreActResNet18()
 model = model.cuda()
@@ -109,10 +110,12 @@ args_test2.upper_limit = ((1 - mu) / std)
 args_test2.lower_limit = ((0 - mu) / std)
 args_test2.epsilon = (args_test2.epsilon) / std
 args_test2.alpha = args_test2.alpha / std
-args_test.attack_iters = 20
+args_test2.attack_iters = 20
+args_test2.check_args_value()
 
-for epoch in range():
-    model_load = torch.load('cifar10_pgd10/' + f'model_{epoch}.pth')
+best_test_robust_acc = 0.0
+for epoch in range(200):
+    model_load = torch.load('cifar10_pgd20/' + f'model_{epoch}.pth')
     model.load_state_dict(model_load)
     # model.load_state_dict(model_load['state_dict'])
     # print(model_load['test_robust_acc'])
@@ -121,8 +124,10 @@ for epoch in range():
     #     print("Let's use", torch.cuda.device_count(), "GPUs!")
     #     model = nn.DataParallel(model)
 
-    test(test_loader, attack_pgd, args_test2)
-
+    test_robust_acc = test(test_loader, attack_pgd, args_test2)
+    if test_robust_acc > best_test_robust_acc:
+        best_test_robust_acc = test_robust_acc
+print(best_test_robust_acc)
 # X, y = iter(test_loader).next()
 # X, y = X.cuda(), y.cuda()
 
