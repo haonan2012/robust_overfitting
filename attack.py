@@ -49,6 +49,53 @@ def attack_fgsm(model, X, y, criterion, args):
     return delta
 
 
+def attack_pgd(model, X, y, criterion, args):
+    '''attack_args: epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit,
+                    attack_init='rand', norm='l_inf', early_stop=False
+    '''
+    set_param_grad(model, False)
+
+    max_loss = torch.zeros(y.shape[0]).cuda()
+    max_delta = torch.zeros_like(X)
+
+    for _ in range(args.restarts):
+        delta = torch.zeros_like(X)
+        if args.attack_init == 'rand':
+            # print('rand init delta!')
+            for i in range(len(args.epsilon)):
+                delta[:, i, :, :].uniform_(-args.epsilon[i][0][0], args.epsilon[i][0][0])
+
+        delta = clamp(delta, args.lower_limit - X, args.upper_limit - X)
+        delta.requires_grad_(True)
+        for _ in range(args.attack_iters):
+            output = model(X + delta)
+            if args.early_stop:
+                index = torch.where(output.max(1)[1] == y)[0]
+            else:
+                index = slice(None, None, None)
+            if not isinstance(index, slice) and len(index) == 0:
+                break
+
+            loss = criterion(output, y)
+            loss.backward()
+
+            g = delta.grad[index, :, :, :]
+            d = delta.data[index, :, :, :]
+            x = X[index, :, :, :]
+
+            d = clamp(d + args.alpha * torch.sign(g), -args.epsilon, args.epsilon)
+            d = clamp(d, args.lower_limit - x, args.upper_limit - x)
+            delta.data[index, :, :, :] = d
+            delta.grad.zero_()
+        with torch.no_grad():
+            all_loss = criterion(model(X + delta), y, reduction='none')
+            max_idx = all_loss >= max_loss
+            max_delta[max_idx] = delta[max_idx]
+            max_loss[max_idx] = all_loss[max_idx]
+    set_param_grad(model, True)
+    return max_delta
+
+
 def attack_pgd_my(model, X, y, criterion, args):
     '''attack_args: epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit,
                     attack_init='rand', norm='l_inf', early_stop=False
@@ -155,50 +202,6 @@ def attack_pgd_my_1(model, X, y, criterion, args):
     return max_delta - X
 
 
-def attack_pgd(model, X, y, criterion, args):
-    '''attack_args: epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit,
-                    attack_init='rand', norm='l_inf', early_stop=False
-    '''
-    max_loss = torch.zeros(y.shape[0]).cuda()
-    max_delta = torch.zeros_like(X)
-
-    for _ in range(args.restarts):
-        delta = torch.zeros_like(X)
-        if args.attack_init == 'rand':
-            # print('rand init delta!')
-            for i in range(len(args.epsilon)):
-                delta[:, i, :, :].uniform_(-args.epsilon[i][0][0], args.epsilon[i][0][0])
-
-        delta = clamp(delta, args.lower_limit - X, args.upper_limit - X)
-        delta.requires_grad_(True)
-        for _ in range(args.attack_iters):
-            output = model(X + delta)
-            if args.early_stop:
-                index = torch.where(output.max(1)[1] == y)[0]
-            else:
-                index = slice(None, None, None)
-            if not isinstance(index, slice) and len(index) == 0:
-                break
-
-            loss = criterion(output, y)
-            loss.backward()
-
-            g = delta.grad[index, :, :, :]
-            d = delta.data[index, :, :, :]
-            x = X[index, :, :, :]
-
-            d = clamp(d + args.alpha * torch.sign(g), -args.epsilon, args.epsilon)
-            d = clamp(d, args.lower_limit - x, args.upper_limit - x)
-            delta.data[index, :, :, :] = d
-            delta.grad.zero_()
-        with torch.no_grad():
-            all_loss = criterion(model(X + delta), y, reduction='none')
-            max_idx = all_loss >= max_loss
-            max_delta[max_idx] = delta[max_idx]
-            max_loss[max_idx] = all_loss[max_idx]
-    return max_delta
-
-
 def attack_pgd_01(model, X, y, criterion, args):
     '''from https://github.com/locuslab/fast_adversarial
     '''
@@ -274,7 +277,7 @@ def attack_pgd_02(model, X, y, criterion, args):
             d = clamp(d, lower_limit - X[index, :, :, :], upper_limit - X[index, :, :, :])
             delta.data[index, :, :, :] = d
             delta.grad.zero_()
-            
+
         all_loss = criterion(model(X + delta), y, reduction='none')
         max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
         max_loss = torch.max(max_loss, all_loss)
